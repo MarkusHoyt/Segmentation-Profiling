@@ -1,0 +1,142 @@
+---
+title: "Hoyt_segmentation_project"
+author: "Mark Hoyt"
+date: "2023-12-12"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(rpart)
+library(rpart.plot)
+library(dplyr)
+
+df <- read.csv(file = 'C:/Users/markt/Downloads/Customer_Dataset_Data.csv')
+```
+
+```{r}
+#identifying the level of education the customer has
+df[df$EducationYears < 12, "Education_Level"] <- "No Degree"
+df[df$EducationYears >= 12 & df$EducationYears < 16, "Education_Level"] <- "HS Diploma"
+df[df$EducationYears >= 16 & df$EducationYears < 18, "Education_Level"] <- "Bachelors"
+df[df$EducationYears >= 18 & df$EducationYears < 22, "Education_Level"] <- "Masters"
+df[df$EducationYears >= 22 & df$EducationYears <= 24, "Education_Level"] <- "Doctorate"
+```
+
+```{r}
+df <- df %>%
+  select('CustomerID', 'Age', 'Education_Level', 'CardSpendMonth', 'PhoneCoTenure', 'VoiceOverTenure', 'EquipmentOverTenure', 'DataOverTenure', 'TVWatchingHours', 'HHIncome', 'Gender') 
+```
+
+```{r}
+#removing unnecessary characters from HHIncome column (i.e. $, ., ,, etc.) and making it numeric
+df <- df %>%
+  mutate(HHIncome = gsub("\\$ ", "", HHIncome))
+
+df <- df %>%
+  mutate(HHIncome = gsub(",", "", HHIncome))
+
+df <- df %>% 
+  mutate(HHIncome = as.numeric(HHIncome))
+```
+
+```{r}
+#removing unnecessary characters from CardSpendMonth column (i.e. $, ., ,, etc.) and making it numeric
+df <- df %>%
+  mutate(CardSpendMonth = gsub("\\$ ", "", CardSpendMonth))
+
+df <- df %>%
+  mutate(CardSpendMonth = gsub(",", "", CardSpendMonth))
+
+df <- df %>% 
+  mutate(CardSpendMonth = as.numeric(CardSpendMonth))
+```
+
+```{r}
+#removing unnecessary characters from VoiceOverTenure column (i.e. $, ., ,, etc.) and making it numeric
+df <- df %>%
+  mutate(VoiceOverTenure = gsub("\\$ ", "", VoiceOverTenure))
+
+df <- df %>%
+  mutate(VoiceOverTenure = gsub(",", "", VoiceOverTenure))
+
+df <- df %>% 
+  mutate(VoiceOverTenure = as.numeric(VoiceOverTenure))
+```
+
+```{r}
+#removing unnecessary characters from DataOverTenure column (i.e. $, ., ,, etc.) and making it numeric
+df <- df %>%
+  mutate(DataOverTenure = gsub("\\$ ", "", DataOverTenure))
+
+df <- df %>%
+  mutate(DataOverTenure = gsub(",", "", DataOverTenure))
+
+df <- df %>% 
+  mutate(DataOverTenure = as.numeric(DataOverTenure))
+```
+
+```{r}
+df <- df %>%
+  mutate(EquipmentOverTenure = gsub("\\$ ", "", EquipmentOverTenure))
+
+df <- df %>%
+  mutate(EquipmentOverTenure = gsub(",", "", EquipmentOverTenure))
+
+df <- df %>% 
+  mutate(EquipmentOverTenure = as.numeric(EquipmentOverTenure))
+```
+
+```{r}
+df$AVGmonthlyvoice <- df$VoiceOverTenure/df$PhoneCoTenure
+
+df[is.na(df)] <- 0
+
+```
+
+#Rule based segmentation
+```{r}
+a <- ggplot(data=df) + geom_histogram(aes(x=AVGmonthlyvoice))
+print(a)
+```
+
+```{r}
+df$VoiceValueGroup <- cut(df$AVGmonthlyvoice, breaks=c(-1,25,50,200), labels=c("Low","Medium","High"))
+```
+
+```{r}
+df <- df %>% mutate(segment = case_when(
+      VoiceValueGroup == "Low" & Gender == "Male" ~ 1,
+      VoiceValueGroup == "Medium" & Gender == "Male" ~ 2,
+      VoiceValueGroup == "High" & Gender == "Male" ~ 3,
+      VoiceValueGroup == "Low" & Gender != "Male" ~ 4,
+      VoiceValueGroup == "Medium" & Gender != "Male" ~ 5,
+      TRUE ~ 6
+    ))
+
+df %>% write_csv("output_of_segmentation.csv")
+```
+
+```{r}
+df %>% add_count(segment) %>%
+  group_by(segment,n) %>% 
+  summarise_all("mean")
+```
+
+```{r}
+df %>% select(-c("CustomerID","Gender","VoiceValueGroup")) %>% add_count(segment) %>%
+  group_by(segment,n) %>% 
+  summarise_all("mean")
+```
+
+```{r}
+B <- ggplot(df)+geom_point(aes(x=AVGmonthlyvoice,y=Age,colour=as.factor(segment)))
+print(B)
+```
+
+```{r}
+write.csv(df, "RuleBased_Customer.csv", row.names=FALSE)
+
+mean(df$VoiceOverTenure)
+```
